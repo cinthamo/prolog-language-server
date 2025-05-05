@@ -1,0 +1,60 @@
+{
+  "name": "prolog-language-server",
+  "version": "0.1.0",
+  "description": "Language Server for Prolog implementing LSP features and analysis via BLint.",
+  "keywords": [
+    "prolog",
+    "lsp",
+    "language-server",
+    "code-analysis",
+    "blint",
+    "vscode"
+  ],
+  "author": "Cristian Inthamoussu <cinthamo@gmail.com>",
+  "license": "MIT",
+  "homepage": "https://github.com/cinthamo/prolog-language-server#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/cinthamo/prolog-language-server.git"
+  },
+  "bugs": {
+    "url": "https://github.com/cinthamo/prolog-language-server/issues"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "main": "out/server.js",
+  "scripts": {
+    "compile": "tsc -p .",
+    "watch": "node esbuild.config.js --watch",
+    "clean:out": "rimraf out",
+    "clean:bin": "rimraf bin",
+    "clean": "npm run clean:out && npm run clean:bin",
+    "copy-blint": "node scripts/copy-blint.js",
+    "typecheck": "tsc --noEmit --pretty",
+    "prebuild": "npm run clean && npm run copy-blint",
+    "bundle": "node esbuild.config.js",
+    "build": "npm run typecheck && npm run bundle",
+    "build:full": "npm run prebuild && npm run build",
+    "test": "npm run typecheck && jest",
+    "test:watch": "npm run typecheck && jest --watch"
+  },
+  "dependencies": {
+    "tmp": "^0.2.3",
+    "vscode-languageserver": "^9.0.1",
+    "vscode-languageserver-textdocument": "^1.0.12"
+  },
+  "devDependencies": {
+    "@types/fs-extra": "^11.0.4",
+    "@types/jest": "^29.5.14",
+    "@types/node": "^22.15.3",
+    "@types/tmp": "^0.2.6",
+    "dotenv": "^16.5.0",
+    "esbuild": "^0.25.3",
+    "fs-extra": "^11.3.0",
+    "jest": "^29.7.0",
+    "rimraf": "^6.0.1",
+    "ts-jest": "^29.3.2",
+    "typescript": "^5.8.3"
+  }
+}
