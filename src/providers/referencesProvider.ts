@@ -1,16 +1,20 @@
 import { ReferenceParams, Location } from 'vscode-languageserver/node';
 import { blintRangeToLspRange } from '../parseResult/rangeUtils';
 import AnalysisCache from '../interfaces/analysisCache';
+import Logger from '../interfaces/logger';
+import PrefixLogger from '../utils/prefixLogger';
 
 export async function provideReferences(
     params: ReferenceParams,
-    cache: AnalysisCache
+    cache: AnalysisCache,
+    logger: Logger
 ): Promise<Location[] | null> {
+    const xLogger = new PrefixLogger(`ReferencesProvider`, logger);
     
     // 1. Find what element is at the cursor position to get target name/arity
     const elementInfo = cache.findElementAtPosition(params.textDocument.uri, params.position);
     if (!elementInfo) {
-        console.log(`ReferencesProvider: No element found at position.`);
+        xLogger.info(`No element found at position.`);
         return null;
     }
     
@@ -18,7 +22,7 @@ export async function provideReferences(
     const targetName = (elementInfo.type === 'definition') ? elementInfo.predicate.name : elementInfo.call.name;
     const targetArity = (elementInfo.type === 'definition') ? elementInfo.predicate.arity : elementInfo.call.arity;
     
-    console.log(`ReferencesProvider: Finding refs for ${targetName}/${targetArity}`);
+    xLogger.info(`Finding refs for ${targetName}/${targetArity}`);
     const locations: Location[] = [];
     
     // 2. Iterate through all cached parse results to find call sites
@@ -41,6 +45,6 @@ export async function provideReferences(
         }
     }
     
-    console.log(`ReferencesProvider: Returning ${locations.length} locations for ${targetName}/${targetArity}.`);
+    xLogger.info(`Returning ${locations.length} locations for ${targetName}/${targetArity}.`);
     return locations;
 }

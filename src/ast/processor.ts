@@ -1,5 +1,6 @@
 import PrologAst, { AstNodeBase, AstTerm, isAstFunctor, isAstAtom, isAstInfix, isAstList, isAstParenthesis, isAstRule, isAstFact, isAstDirective, isAstParseError } from './types';
 import ParseResult, { ParserResultPredicate, EnhancedCallInfo, SourceRange, DiagnosticData } from '../parseResult/types';
+import Logger from '../interfaces/logger';
 
 // Helper to extract name/arity from a predicate head term
 function getHeadNameArity(head: AstTerm): { name: string; arity: number } | null {
@@ -15,7 +16,7 @@ function getHeadNameArity(head: AstTerm): { name: string; arity: number } | null
 
 // Helper to extract a SourceRange from potentially incomplete AST node info
 // Returns a default range if line/column are missing.
-function getSourceRangeFromNode(node: AstNodeBase): SourceRange {
+function getSourceRangeFromNode(node: AstNodeBase, logger: Logger): SourceRange {
     // --- This requires BLint to provide usable location info ---
     // --- Adapt based on what BLint *actually* provides for terms ---
 
@@ -36,12 +37,12 @@ function getSourceRangeFromNode(node: AstNodeBase): SourceRange {
     }
 
     // Absolute fallback (indicates missing info from BLint)
-    console.warn(`AST node missing location info: ${JSON.stringify(node)}`);
+    logger.warn(`AST node missing location info: ${JSON.stringify(node)}`);
     return { startLine: 1, startCharacter: 0, endLine: 1, endCharacter: 1 };
 }
 
 // Recursive helper to find all calls (functors) within a term or list of terms
-function findCallsInBody(body: AstTerm[], calls: EnhancedCallInfo[]): void {
+function findCallsInBody(body: AstTerm[], calls: EnhancedCallInfo[], logger: Logger): void {
     for (const term of body) {
         if (!term) continue;
 
@@ -50,22 +51,22 @@ function findCallsInBody(body: AstTerm[], calls: EnhancedCallInfo[]): void {
             calls.push({
                 name: term.name,
                 arity: term.arity,
-                location: getSourceRangeFromNode(term) // <<< RELIES ON BLINT PROVIDING LOCATION FOR FUNCTORS
+                location: getSourceRangeFromNode(term, logger) // <<< RELIES ON BLINT PROVIDING LOCATION FOR FUNCTORS
                 // Optional: Add fullCallLocation if BLint provides range for the whole term
             });
             // Recursively search inside the parameters of the functor
-            findCallsInBody(term.params, calls); // Assumes params is AstTerm[]
+            findCallsInBody(term.params, calls, logger); // Assumes params is AstTerm[]
         } else if (isAstInfix(term)) {
             // Recursively search left and right operands
-            findCallsInBody([term.left, term.right], calls);
+            findCallsInBody([term.left, term.right], calls, logger);
             // Optionally add the infix operator itself as a "call" if needed
             // calls.push({ name: term.op.op, arity: 2, location: getSourceRangeFromNode(term.op) });
         } else if (isAstList(term)) {
             // Recursively search list items
-            findCallsInBody(term.items, calls);
+            findCallsInBody(term.items, calls, logger);
         } else if (isAstParenthesis(term)) {
             // Recursively search content within parentheses
-            findCallsInBody(term.content, calls);
+            findCallsInBody(term.content, calls, logger);
         }
         // Ignore AstAtom, AstVar, AstNumber, AstCut etc. for finding *calls*
     }
@@ -78,7 +79,7 @@ function findCallsInBody(body: AstTerm[], calls: EnhancedCallInfo[]): void {
  * @param ast The PrologAst object from the JSON file.
  * @returns A ParseResult object.
  */
-export function transformAstToParseResult(ast: PrologAst): ParseResult {
+export function transformAstToParseResult(ast: PrologAst, logger: Logger): ParseResult {
     const predicatesMap = new Map<string, ParserResultPredicate>();
     const diagnostics: DiagnosticData[] = []; // Collect any diagnostics if needed later
 
@@ -113,16 +114,16 @@ export function transformAstToParseResult(ast: PrologAst): ParseResult {
 
         const headInfo = getHeadNameArity(headTerm);
         if (!headInfo) {
-            console.warn(`Could not determine name/arity for head term: ${JSON.stringify(headTerm)}`);
+            logger.warn(`Could not determine name/arity for head term: ${JSON.stringify(headTerm)}`);
             continue;
         }
 
         const predicateKey = `${headInfo.name}/${headInfo.arity}`;
-        const definitionRange = getSourceRangeFromNode(headTerm); // <<< RELIES ON BLINT PROVIDING LOCATION FOR HEAD
+        const definitionRange = getSourceRangeFromNode(headTerm, logger); // <<< RELIES ON BLINT PROVIDING LOCATION FOR HEAD
 
         // Find calls within the body of this specific clause
         const clauseCalls: EnhancedCallInfo[] = [];
-        findCallsInBody(bodyTerms, clauseCalls);
+        findCallsInBody(bodyTerms, clauseCalls, logger);
 
         // Get or create the entry in the map
         let predicateEntry = predicatesMap.get(predicateKey);

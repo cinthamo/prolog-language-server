@@ -4,6 +4,7 @@ import AnalysisCache, { ReferenceInfo } from '../../interfaces/analysisCache';
 import ParseResult, { SourceRange } from '../../parseResult/types';
 import { blintRangeToLspRange } from '../../parseResult/rangeUtils';
 import { provideReferences } from '../referencesProvider';
+import Logger from '../../interfaces/logger';
 
 describe('referencesProvider.provideReferences', () => {
     let mockCache: jest.Mocked<AnalysisCache>;
@@ -14,6 +15,7 @@ describe('referencesProvider.provideReferences', () => {
     let mockPositionOnCall: Position;
     let mockContextIncludeDef: ReferenceContext;
     let mockContextExcludeDef: ReferenceContext;
+    let mockLogger: jest.Mocked<Logger>;
 
     // Define ranges used in mock data
     const defRangePred1: SourceRange = { startLine: 3, startCharacter: 0, endLine: 3, endCharacter: 5 }; // "pred1"
@@ -33,6 +35,12 @@ describe('referencesProvider.provideReferences', () => {
         mockPositionOnCall = Position.create(6, 6); // Line 7, char 6 (on pred1 call in file1)
         mockContextIncludeDef = { includeDeclaration: true };
         mockContextExcludeDef = { includeDeclaration: false };
+        mockLogger = {
+            error: jest.fn(),
+            warn: jest.fn(),
+            info: jest.fn(),
+            debug: jest.fn(),
+        };
 
         // --- Setup Mock Parse Results ---
         mockParseResult1 = {
@@ -96,7 +104,7 @@ describe('referencesProvider.provideReferences', () => {
 
     it('should return null if element is not found at position', async () => {
         mockCache.findElementAtPosition.mockReturnValue(undefined);
-        const result = await provideReferences(mockParams, mockCache as AnalysisCache);
+        const result = await provideReferences(mockParams, mockCache as AnalysisCache, mockLogger);
         expect(result).toBeNull();
         expect(mockCache.findElementAtPosition).toHaveBeenCalledWith(mockUri1, mockPositionOnDef);
         expect(mockCache.findReferences).not.toHaveBeenCalled();
@@ -110,7 +118,7 @@ describe('referencesProvider.provideReferences', () => {
         });
         // findReferences will return the mockReferencesResult defined in beforeEach
 
-        const result = await provideReferences(mockParams, mockCache as AnalysisCache);
+        const result = await provideReferences(mockParams, mockCache as AnalysisCache, mockLogger);
 
         expect(result).toBeDefined();
         expect(mockCache.findElementAtPosition).toHaveBeenCalledWith(mockUri1, mockPositionOnDef);
@@ -131,7 +139,7 @@ describe('referencesProvider.provideReferences', () => {
         });
         // findReferences will return the mockReferencesResult defined in beforeEach
 
-        const result = await provideReferences(mockParams, mockCache as AnalysisCache);
+        const result = await provideReferences(mockParams, mockCache as AnalysisCache, mockLogger);
 
         expect(result).toBeDefined();
         expect(mockCache.findElementAtPosition).toHaveBeenCalledWith(mockUri1, mockPositionOnCall);
@@ -155,7 +163,7 @@ describe('referencesProvider.provideReferences', () => {
         });
         // findReferences returns mockReferencesResult
 
-        const result = await provideReferences(mockParams, mockCache as AnalysisCache);
+        const result = await provideReferences(mockParams, mockCache as AnalysisCache, mockLogger);
 
         expect(result).toBeDefined();
         expect(mockCache.findElementAtPosition).toHaveBeenCalledWith(mockUri1, mockPositionOnDef);
@@ -180,7 +188,7 @@ describe('referencesProvider.provideReferences', () => {
          });
           // findReferences returns mockReferencesResult
 
-         const result = await provideReferences(mockParams, mockCache as AnalysisCache);
+         const result = await provideReferences(mockParams, mockCache as AnalysisCache, mockLogger);
 
          expect(result).toBeDefined();
          expect(mockCache.findElementAtPosition).toHaveBeenCalledWith(mockUri1, mockPositionOnCall);
@@ -203,7 +211,7 @@ describe('referencesProvider.provideReferences', () => {
          });
          mockCache.findReferences.mockReturnValue([]);
 
-         const result = await provideReferences(mockParams, mockCache as AnalysisCache);
+         const result = await provideReferences(mockParams, mockCache as AnalysisCache, mockLogger);
 
          expect(result).toEqual([]);
          expect(mockCache.findElementAtPosition).toHaveBeenCalledWith(mockUri2, mockParams.position);
@@ -223,7 +231,7 @@ describe('referencesProvider.provideReferences', () => {
                uri: mockUri2, predicate: mockParseResult2.predicates[1]
           });
 
-          const result = await provideReferences(mockParams, mockCache as AnalysisCache);
+          const result = await provideReferences(mockParams, mockCache as AnalysisCache, mockLogger);
 
           expect(result).toHaveLength(1);
           expect(result).toEqual([ Location.create(mockUri2, blintRangeToLspRange(defRangePred2)) ]); // Only definition

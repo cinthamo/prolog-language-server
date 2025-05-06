@@ -140,7 +140,7 @@ describe('prologParser.parseProlog (Dependency Injection)', () => {
         expect(mockTempManager.cleanup).toHaveBeenCalledWith(tmpDir);
 
         // Verify result structure matches the detailed mock data
-        const mockTransformedResult = transformAstToParseResult(mockJsonResult);
+        const mockTransformedResult = transformAstToParseResult(mockJsonResult, mockLogger);
         expect(result.predicates).toEqual(mockTransformedResult.predicates);
         expect(result.diagnostics).toEqual([]);
         expect(mockLogger.error).not.toHaveBeenCalled();

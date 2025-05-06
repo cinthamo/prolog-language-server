@@ -1,7 +1,9 @@
 import AnalysisCache, { FindElementResult, ReferenceInfo } from '../interfaces/analysisCache';
+import Logger from '../interfaces/logger';
 import { blintRangeToLspRange } from '../parseResult/rangeUtils';
 import ParseResult, { ParserResultPredicate } from '../parseResult/types';
 import { Position, Range } from 'vscode-languageserver/node';
+import PrefixLogger from './prefixLogger';
 
 // Helper to check if an LSP Position is within an LSP Range
 function isPositionInRange(position: Position, range: Range): boolean {
@@ -29,12 +31,17 @@ export default class RealAnalysisCache implements AnalysisCache {
     private cache = new Map<string, ParseResult>();
     // Optional: Store derived lookup structures if needed for performance
     // private predicateDefinitions = new Map<string, {uri: string, predicate: ParserResultPredicate}>(); // "name/arity" -> definition info
+    private logger: Logger;
+
+    constructor(logger: Logger) {
+        this.logger = new PrefixLogger(`AnalysisCache`, logger);
+    }
     
     public set(uri: string, result: ParseResult): void {
         this.cache.set(uri, result);
         // Update derived structures if used
         // this.updatePredicateDefinitions(uri, result);
-        console.log(`AnalysisCache: Updated entry for ${uri}`);
+        this.logger.info(`Updated entry for ${uri}`);
     }
     
     public get(uri: string): ParseResult | undefined {
@@ -45,7 +52,7 @@ export default class RealAnalysisCache implements AnalysisCache {
         if (this.cache.delete(uri)) {
             // Update derived structures if used
             // this.removePredicateDefinitions(uri);
-            console.log(`AnalysisCache: Deleted entry for ${uri}`);
+            this.logger.info(`Deleted entry for ${uri}`);
         }
     }
     
@@ -53,7 +60,7 @@ export default class RealAnalysisCache implements AnalysisCache {
         this.cache.clear();
         // Clear derived structures if used
         // this.predicateDefinitions.clear();
-        console.log(`AnalysisCache: Cleared all entries.`);
+        this.logger.info(`Cleared all entries.`);
     }
     
     // --- Lookup Methods (Derived from Cache Data) ---

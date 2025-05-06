@@ -10,6 +10,7 @@ import { provideDocumentSymbols } from './providers/documentSymbolProvider';
 import { registerCustomRequests } from './customRequests';
 import DocumentManager from './documentManager';
 import RealAnalysisCache from './utils/realAnalysisCache';
+import LspLogger from './utils/lspLogger';
 
 console.log('Starting Prolog Language Server...');
 
@@ -20,8 +21,9 @@ const connection = createConnection(ProposedFeatures.all);
 const documents: TextDocuments<TextDocument> = new TextDocuments(TextDocument);
 
 // Global components
-const analysisCache = new RealAnalysisCache();
-const documentManager = new DocumentManager(documents, analysisCache, connection);
+const logger = new LspLogger(connection);
+const analysisCache = new RealAnalysisCache(logger);
+const documentManager = new DocumentManager(documents, analysisCache, connection, logger);
 
 let hasConfigurationCapability = false;
 let hasWorkspaceFolderCapability = false;
@@ -94,19 +96,19 @@ connection.onDidChangeConfiguration(change => {
 
 // --- Standard LSP Handlers ---
 connection.onDefinition((params: TextDocumentPositionParams): Definition | null => {
-    return provideDefinition(params, analysisCache);
+    return provideDefinition(params, analysisCache, logger);
 });
 
 connection.onReferences(async (params: ReferenceParams): Promise<Location[] | null> => {
-    return provideReferences(params, analysisCache);
+    return provideReferences(params, analysisCache, logger);
 });
 
 connection.onDocumentSymbol((params: DocumentSymbolParams): DocumentSymbol[] | null => {
-    return provideDocumentSymbols(params, analysisCache);
+    return provideDocumentSymbols(params, analysisCache, logger);
 });
 
 // --- Custom LSP Handlers ---
-registerCustomRequests(connection, analysisCache, documentManager);
+registerCustomRequests(connection, logger, analysisCache, documentManager);
 
 // Make the text document manager listen on the connection
 documents.listen(connection);

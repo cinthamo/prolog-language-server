@@ -58,7 +58,7 @@ export async function parseProlog(
         await deps.fs.writeFile(tempSourcePath, documentContent, 'utf-8');
         const outputFileName = `${path.basename(sourceFilePath, path.extname(sourceFilePath))}.AST.json`;
         const expectedOutputFile = path.join(tmpDir, outputFileName);
-        await deps.fs.unlink(expectedOutputFile).catch(err => { if (err.code !== 'ENOENT') console.warn(`Could not delete previous temp file: ${expectedOutputFile}`); });
+        await deps.fs.unlink(expectedOutputFile).catch(err => { if (err.code !== 'ENOENT') logger.warn(`Could not delete previous temp file: ${expectedOutputFile}`); });
 
         // --- 3. Execute BLint using CommandRunner Factory ---
         const parser = deps.commandRunnerFactory(blintPathToUse, deps.logger); // Create runner instance
@@ -90,7 +90,7 @@ export async function parseProlog(
                 logger.debug(`Successfully parsed AST JSON.`);
 
                 // --- Transform into ParseResult ---
-                const transformedResult = transformAstToParseResult(parsedAst);
+                const transformedResult = transformAstToParseResult(parsedAst, deps.logger);
 
                 // Merge predicates and diagnostics from transformation
                 baseResult.predicates = transformedResult.predicates;

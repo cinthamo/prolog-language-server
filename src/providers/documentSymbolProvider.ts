@@ -2,15 +2,19 @@ import { DocumentSymbolParams, DocumentSymbol, SymbolKind } from 'vscode-languag
 import { ParserResultPredicate } from '../parseResult/types';
 import { blintRangeToLspRange } from '../parseResult/rangeUtils';
 import AnalysisCache from '../interfaces/analysisCache';
+import Logger from '../interfaces/logger';
+import PrefixLogger from '../utils/prefixLogger';
 
 export function provideDocumentSymbols(
     params: DocumentSymbolParams,
-    cache: AnalysisCache
+    cache: AnalysisCache,
+    logger: Logger
 ): DocumentSymbol[] | null {
+    const xLogger = new PrefixLogger(`DocumentSymbolProvider`, logger);
     const parseResult = cache.get(params.textDocument.uri);
     if (!parseResult) return null;
 
-    console.log(`DocumentSymbolProvider: Providing symbols for ${params.textDocument.uri}`);
+    xLogger.info(`Providing symbols for ${params.textDocument.uri}`);
 
     return parseResult.predicates.map((pred: ParserResultPredicate) => {
         // Use the precise definitionRange from BLint

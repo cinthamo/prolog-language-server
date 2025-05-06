@@ -53,7 +53,7 @@ beforeAll(async () => {
         fs: realFileSystem,
         commandRunnerFactory: (executablePath: string, logger: Logger) => new RealCommandRunner(executablePath, logger),
         tempManager: mockTempManager,
-        blintLocator: realBlintLocator,
+        blintLocator: realBlintLocator(mockLogger),
         logger: mockLogger
     };
 

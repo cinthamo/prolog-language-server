@@ -2,6 +2,7 @@ import { describe, expect, it, beforeEach } from '@jest/globals';
 import ParseResult, { SourceRange } from '../../parseResult/types';
 import RealAnalysisCache from '../realAnalysisCache';
 import AnalysisCache, { ReferenceInfo } from '../../interfaces/analysisCache';
+import Logger from '../../interfaces/logger';
 
 describe('AnalysisCache', () => {
     let cache: AnalysisCache;
@@ -9,6 +10,7 @@ describe('AnalysisCache', () => {
     const uri2 = 'file:///project/file2.pl';
     let result1: ParseResult;
     let result2: ParseResult;
+    let mockLogger: jest.Mocked<Logger>;
     
     // Define some ranges for clarity
     const defRangePred1: SourceRange = { startLine: 3, startCharacter: 0, endLine: 3, endCharacter: 5 };
@@ -17,7 +19,14 @@ describe('AnalysisCache', () => {
     const defRangePred2: SourceRange = { startLine: 10, startCharacter: 0, endLine: 10, endCharacter: 5 };
     
     beforeEach(() => {
-        cache = new RealAnalysisCache();
+        mockLogger = {
+            error: jest.fn(),
+            warn: jest.fn(),
+            info: jest.fn(),
+            debug: jest.fn(),
+        };
+
+        cache = new RealAnalysisCache(mockLogger);
         
         result1 = {
             filePath: '/project/file1.pl',

@@ -3,6 +3,7 @@ import AnalysisCache from '../../interfaces/analysisCache';
 import { provideDefinition } from '../definitionProvider';
 import ParseResult, { SourceRange } from '../../parseResult/types';
 import { describe, expect, it, beforeEach, jest } from '@jest/globals';
+import Logger from '../../interfaces/logger';
 
 describe('definitionProvider.provideDefinition', () => {
     let mockCache: jest.MockedObject<AnalysisCache>;
@@ -13,12 +14,19 @@ describe('definitionProvider.provideDefinition', () => {
     let mockCallLocation: SourceRange;
     let mockTargetDefinitionRange: SourceRange;
     let mockParseResult: ParseResult;
+    let mockLogger: jest.Mocked<Logger>;
 
     beforeEach(() => {
         mockUri = 'file:///path/to/test.pl';
         mockDefinitionRange = { startLine: 5, startCharacter: 0, endLine: 5, endCharacter: 5 }; // pred1
         mockCallLocation = { startLine: 5, startCharacter: 15, endLine: 5, endCharacter: 20 }; // pred2 call
         mockTargetDefinitionRange = { startLine: 10, startCharacter: 0, endLine: 10, endCharacter: 5 }; // pred2 definition
+        mockLogger = {
+            error: jest.fn(),
+            warn: jest.fn(),
+            info: jest.fn(),
+            debug: jest.fn(),
+        };
 
         // Mock ParseResult with detailed locations
         mockParseResult = {
@@ -60,7 +68,7 @@ describe('definitionProvider.provideDefinition', () => {
     it('should return null if element is not found at position', () => {
         mockCache.findElementAtPosition.mockReturnValue(undefined); // Simulate not finding anything
 
-        const result = provideDefinition(mockParams, mockCache as AnalysisCache);
+        const result = provideDefinition(mockParams, mockCache as AnalysisCache, mockLogger);
 
         expect(result).toBeNull();
         expect(mockCache.findElementAtPosition).toHaveBeenCalledWith(mockUri, mockPosition);
@@ -76,7 +84,7 @@ describe('definitionProvider.provideDefinition', () => {
             uri: mockUri
         });
 
-        const result = provideDefinition(mockParams, mockCache as AnalysisCache);
+        const result = provideDefinition(mockParams, mockCache as AnalysisCache, mockLogger);
 
         expect(result).toBeDefined();
         expect(result).toEqual(Location.create(
@@ -104,7 +112,7 @@ describe('definitionProvider.provideDefinition', () => {
         });
 
 
-        const result = provideDefinition(mockParams, mockCache as AnalysisCache);
+        const result = provideDefinition(mockParams, mockCache as AnalysisCache, mockLogger);
 
         expect(result).toBeDefined();
         expect(result).toEqual(Location.create(
@@ -128,7 +136,7 @@ describe('definitionProvider.provideDefinition', () => {
         // Simulate definition NOT being found
         mockCache.findDefinitionByNameArity.mockReturnValue(undefined);
 
-        const result = provideDefinition(mockParams, mockCache as AnalysisCache);
+        const result = provideDefinition(mockParams, mockCache as AnalysisCache, mockLogger);
 
         expect(result).toBeNull();
          expect(mockCache.findDefinitionByNameArity).toHaveBeenCalledWith('pred2', 1);
