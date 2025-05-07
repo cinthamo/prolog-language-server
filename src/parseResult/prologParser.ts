@@ -1,8 +1,7 @@
 import * as path from 'node:path';
 import { PrologServerSettings } from '../types';
 import { Diagnostic, DiagnosticSeverity, Range } from 'vscode-languageserver/node';
-import { transformAstToParseResult } from '../ast/processor';
-import ParseResult, { DiagnosticData } from '../parseResult/types';
+import { DiagnosticData } from '../parseResult/types';
 import FileSystem from '../interfaces/fileSystem';
 import CommandRunner from '../interfaces/commandManager';
 import TempManager from '../interfaces/tempManager';
@@ -21,36 +20,34 @@ export interface ParserDependencies {
 }
 
 /**
- * Generates ParseResult using injected dependencies.
- * @param sourceFilePath Absolute path to the source file.
- * @param documentContent Content of the document to parse. (it may differ from sourceFilePath if it's a virtual document)
- * @param settings The current effective settings for this document scope.
- * @param deps Injected dependencies (fs, command runner factory, temp manager, blint locator).
- * @returns The ParseResult.
- */
+* Generates ParseResult using injected dependencies.
+* @param sourceFilePath Absolute path to the source file.
+* @param documentContent Content of the document to parse. (it may differ from sourceFilePath if it's a virtual document)
+* @param settings The current effective settings for this document scope.
+* @param deps Injected dependencies (fs, command runner factory, temp manager, blint locator).
+* @returns The ParseResult.
+*/
 export async function parseProlog(
     sourceFilePath: string,
     documentContent: string,
     settings: PrologServerSettings,
     deps: ParserDependencies
-): Promise<ParseResult> {
+): Promise<{ success: true, ast: PrologAst, warning?: string } | { success: false, error :string }> {
     const logger = new PrefixLogger(`PrologParser ${path.basename(sourceFilePath)}`, deps.logger);
-    const baseResult: ParseResult = { filePath: sourceFilePath, predicates: [], diagnostics: [] };
     let tmpDir: string | undefined = undefined;
     
     try {
         // --- 1. Get and Validate BLint Path using Locator ---
         const blintPathToUse = await deps.blintLocator.getBlintPath(settings);
-
+        
         if (!blintPathToUse) {
             // Locator should have already logged/created diagnostic if path invalid/missing
             const message = `BLint path could not be determined or validated. Check logs or configuration 'prologLanguageServer.blint.path'.`;
             logger.error(message);
-            baseResult.diagnostics?.push({ line: 1, character: 0, message, severity: 'error' });
-            return baseResult;
+            return { success: false, error: message };
         }
-         // Path validation (access/chmod) is now assumed to be handled *within* deps.blintLocator.getBlintPath
-
+        // Path validation (access/chmod) is now assumed to be handled *within* deps.blintLocator.getBlintPath
+        
         // --- 2. Prepare Temp Files using TempManager and injected FS ---
         logger.info(`Parsing ${path.basename(sourceFilePath)} using BLint at ${blintPathToUse}...`);
         tmpDir = await deps.tempManager.mkdtemp(`prolog-lsp-parser-`);
@@ -59,24 +56,19 @@ export async function parseProlog(
         const outputFileName = `${path.basename(sourceFilePath, path.extname(sourceFilePath))}.AST.json`;
         const expectedOutputFile = path.join(tmpDir, outputFileName);
         await deps.fs.unlink(expectedOutputFile).catch(err => { if (err.code !== 'ENOENT') logger.warn(`Could not delete previous temp file: ${expectedOutputFile}`); });
-
+        
         // --- 3. Execute BLint using CommandRunner Factory ---
         const parser = deps.commandRunnerFactory(blintPathToUse, deps.logger); // Create runner instance
         const executionResult = await parser.execute(...['-ec', '-ast', `-o${tmpDir}`, ...(settings.blint.args || []), tempSourcePath]); // -ec preserve comments, -ast generate AST, -o output directory
-
+        
         // --- 4. Process Execution Result (Same logic as before) ---
+        let warning: string | undefined = undefined;
         if (executionResult.code !== 0 && (executionResult.code !== 1 || (await deps.fs.stat(expectedOutputFile))?.size === 0)) {
             const message = `BLint process exited with error code ${executionResult.code}.`;
-            logger.warn(message, { stderr: executionResult.stderr?.substring(0, 500) });
-
-            baseResult.diagnostics?.push({
-                line: 1, // Default to line 1 for general process errors
-                character: 0,
-                message: `${message} Check log output for details.`,
-                severity: 'warning' // Use 'warning' as it might have still produced some output
-            });
+            logger.warn(message, { stderr: executionResult.stderr?.substring(0, 500) });            
+            warning = `${message} Check log output for details.`;
         }
-
+        
         // --- 5. Read, Parse AST JSON, and Transform ---
         logger.debug(`Attempting to read AST JSON output: ${expectedOutputFile}`);
         try {
@@ -85,20 +77,12 @@ export async function parseProlog(
             try {
                 // Parse into the detailed AST structure first
                 const parsedAst = JSON.parse(outputContent) as PrologAst;
-                // TODO: Add basic validation if parsedAst or parsedAst.predicates is missing?
-
                 logger.debug(`Successfully parsed AST JSON.`);
-
-                // --- Transform into ParseResult ---
-                const transformedResult = transformAstToParseResult(parsedAst, deps.logger);
-
-                // Merge predicates and diagnostics from transformation
-                baseResult.predicates = transformedResult.predicates;
-                baseResult.diagnostics?.push(...(transformedResult.diagnostics || [])); // Keep diagnostics added earlier from BLint execution errors/stderr
+                return { success: true, ast: parsedAst, warning };
             } catch (jsonOrTransformError: any) {
                 const message = `Error processing BLint AST JSON output in ${outputFileName}.`;
                 logger.error(message, { error: jsonOrTransformError.message, contentStart: outputContent.substring(0, 500) + '...', file: sourceFilePath });
-                baseResult.diagnostics?.push({ line: 1, character: 0, message: `${message} Error: ${jsonOrTransformError.message}`, severity: 'error' });
+                return { success: false, error: `${message} Error: ${jsonOrTransformError.message}` };
             }
         } catch (readError: any) {
             // --- Handle File Read Errors ---
@@ -107,38 +91,27 @@ export async function parseProlog(
                 if (executionResult.code === 0) {
                     const message = `BLint ran successfully but produced no output JSON file (${outputFileName}).`;
                     logger.warn(message);
-                    baseResult.diagnostics?.push({ line: 1, character: 0, message, severity: 'warning' });
+                    return { success: false, error: message };
                 } else if (executionResult.code !== 0) {
                     logger.warn(`BLint failed (code ${executionResult.code}) and produced no output JSON file.`);
-                    // Diagnostic for exit code should already be added
+                    return { success: false, error: `BLint failed (code ${executionResult.code}) and produced no output JSON file.` };
                 } else { // code === 0 but directDiagnostics > 0
                     logger.info(`BLint finished, no JSON output, but found diagnostics in stdout/stderr.`);
-                    // Diagnostics already added
+                    return { success: false, error: `BLint finished, no JSON output, but found diagnostics in stdout/stderr.` };
                 }
             } else {
                 // Other file read error (e.g., permissions)
                 const message = `Error reading BLint output file ${outputFileName}.`;
                 logger.error(`${message} Error: ${readError.message}`, { file: sourceFilePath }, readError);
-                baseResult.diagnostics?.push({
-                    line: 1,
-                    character: 0,
-                    message: `${message} Error: ${readError.message}`,
-                    severity: 'error'
-                });
+                return { success: false, error: `${message} Error: ${readError.message}` };
             }
-             // Continue without predicates from JSON
         }
-
-        // --- Function continues ---
-        logger.debug(`Finished processing. Returning ${baseResult.diagnostics?.length || 0} diagnostics and ${baseResult.predicates.length} predicates.`);
-        return baseResult;
-
+        
     } catch (error: any) {
         // Catch errors during setup phase (e.g., temp dir creation, locator errors if it throws)
         const message = `Critical error during BLint analysis setup for ${sourceFilePath}: ${error.message}`;
         logger.error(message, error);
-        baseResult.diagnostics = [{ line: 1, character: 0, message, severity: 'error' }];
-        return baseResult;
+        return { success: false, error: message };
     } finally {
         // --- 6. Cleanup using TempManager ---
         await deps.tempManager.cleanup(tmpDir);

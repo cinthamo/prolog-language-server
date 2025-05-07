@@ -108,7 +108,7 @@ connection.onDocumentSymbol((params: DocumentSymbolParams): DocumentSymbol[] | n
 });
 
 // --- Custom LSP Handlers ---
-registerCustomRequests(connection, logger, analysisCache, documentManager);
+registerCustomRequests(connection, logger, documentManager);
 
 // Make the text document manager listen on the connection
 documents.listen(connection);

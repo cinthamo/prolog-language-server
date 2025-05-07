@@ -11,6 +11,8 @@ import realTempManager from './utils/realTempManager';
 import realBlintLocator from './utils/realBlintLocator';
 import Logger from './interfaces/logger';
 import PrefixLogger from './utils/prefixLogger';
+import { transformAstToParseResult } from './ast/processor';
+import PrologAst from './ast/types';
 
 export default class DocumentManager {
     private analysisQueue = new Map<string, Promise<ParseResult | undefined>>(); // Track ongoing analysis
@@ -80,6 +82,14 @@ export default class DocumentManager {
             return defaultSettings; // Fallback to defaults on error
         }
     }
+
+    public async getFileAst(uri: string): Promise<PrologAst | undefined> {
+        const currentSettings = await this.fetchSettings(uri);
+        const document = this.documents.get(uri);
+        if (!document) return undefined;
+        const result = await parseProlog(uri, document.getText(), currentSettings, this.parserDeps);
+        return result.success === true ? result.ast : undefined;
+    }
     
     /** Triggers analysis, managing the queue */
     private triggerAnalysis(document: TextDocument): void {
@@ -108,8 +118,28 @@ export default class DocumentManager {
             this.logger.info(`Fetching settings and starting analysis for ${uri}...`);
             const currentSettings = await this.fetchSettings(uri);
             
-            // --- Call parser which now always returns ParseResult ---
-            const result = await parseProlog(uri, document.getText(), currentSettings, this.parserDeps);
+            // --- Call parser which returrs the AST ---
+            const baseResult = await parseProlog(uri, document.getText(), currentSettings, this.parserDeps);
+
+            const result: ParseResult = {
+                filePath: uri,
+                predicates: [],
+                diagnostics: [],
+            };
+            if (baseResult.success === true) {
+                if (baseResult.warning) {
+                    result.diagnostics!.push({ line: 1, character: 0, message: baseResult.warning, severity: 'warning' });
+                }
+                // --- Transform into ParseResult ---
+                const transformedResult = transformAstToParseResult(baseResult.ast, this.logger);
+
+                // Merge predicates and diagnostics from transformation
+                result.predicates = transformedResult.predicates;
+                result.diagnostics = [...result.diagnostics!, ...transformedResult.diagnostics!];
+                // Keep diagnostics added earlier from BLint execution errors/stderr
+            } else {
+                result.diagnostics = [{ line: 1, character: 0, message: baseResult.error, severity: 'error' }];
+            }
             
             // Process the result (even if it only contains diagnostics)
             this.cache.set(uri, result); // Cache the result regardless

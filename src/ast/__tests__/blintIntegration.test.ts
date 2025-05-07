@@ -13,6 +13,8 @@ import TempManager from '../../interfaces/tempManager';
 import realFileSystem from '../../utils/realFileSystem';
 import RealCommandRunner from '../../utils/realCommandRunner';
 import realBlintLocator from '../../utils/realBlintLocator';
+import PrologAst from '../types';
+import { transformAstToParseResult } from '../processor';
 
 // --- Test Configuration ---
 let testFilesDir: string; // Need a place to write test files
@@ -105,38 +107,40 @@ rule_head(A) :-
         const settings: PrologServerSettings = { blint: { path: null, args: ['-ilnt106', '-ilnt108'] } }; // Use bundled BLint, LNT 106 predicate not used, LNT 108 no public predicates
 
         // ACT
-        const parseResult = await parseProlog(filePath, fileContent, settings, realParserDeps);
+        const result = await parseProlog(filePath, fileContent, settings, realParserDeps);
 
         // ASSERT
-        expect(parseResult).toBeDefined();
-        expect(parseResult.filePath).toEqual(filePath);
-        expect(parseResult.diagnostics).toEqual([]); // Expect no errors
-        expect(parseResult.predicates).toHaveLength(2);
+        expect(result).toBeDefined();
+        expect(result.success).toEqual(true);
+        if (result.success === true) {
+            const parseResult = transformAstToParseResult(result.ast, mockLogger);
+            expect(parseResult.predicates).toHaveLength(2);
 
-        // Check fact.
-        const factPred = parseResult.predicates.find(p => p.name === 'fact');
-        expect(factPred).toBeDefined();
-        expect(factPred?.arity).toEqual(0);
-        expect(factPred?.definitionRange).toBeDefined();
-        expect(factPred?.definitionRange.startLine).toEqual(2); // Line numbers are 1-based from content
-        expect(factPred?.definitionRange.endLine).toEqual(2);
-        // Add precise character checks if BLint provides them and they are stable
-        // expect(factPred?.definitionRange.startCharacter).toEqual(0);
-        // expect(factPred?.definitionRange.endCharacter).toEqual(4);
-        expect(factPred?.calls).toEqual([]);
+            // Check fact.
+            const factPred = parseResult.predicates.find(p => p.name === 'fact');
+            expect(factPred).toBeDefined();
+            expect(factPred?.arity).toEqual(0);
+            expect(factPred?.definitionRange).toBeDefined();
+            expect(factPred?.definitionRange.startLine).toEqual(2); // Line numbers are 1-based from content
+            expect(factPred?.definitionRange.endLine).toEqual(2);
+            // Add precise character checks if BLint provides them and they are stable
+            // expect(factPred?.definitionRange.startCharacter).toEqual(0);
+            // expect(factPred?.definitionRange.endCharacter).toEqual(4);
+            expect(factPred?.calls).toEqual([]);
 
-        // Check rule_head(A) :- write(A).
-        const ruleHeadPred = parseResult.predicates.find(p => p.name === 'rule_head');
-        expect(ruleHeadPred).toBeDefined();
-        expect(ruleHeadPred?.arity).toEqual(1);
-        expect(ruleHeadPred?.definitionRange).toBeDefined();
-        expect(ruleHeadPred?.definitionRange.startLine).toEqual(4); // Line 4 in content
-        expect(ruleHeadPred?.calls).toHaveLength(1);
-        expect(ruleHeadPred?.calls[0].name).toEqual('write');
-        expect(ruleHeadPred?.calls[0].arity).toEqual(1); // Assuming BLint identifies built-in arity
-        expect(ruleHeadPred?.calls[0].location).toBeDefined();
-        expect(ruleHeadPred?.calls[0].location.startLine).toEqual(5); // write(A) is on Line 5
-        // Add precise character checks if stable/needed
+            // Check rule_head(A) :- write(A).
+            const ruleHeadPred = parseResult.predicates.find(p => p.name === 'rule_head');
+            expect(ruleHeadPred).toBeDefined();
+            expect(ruleHeadPred?.arity).toEqual(1);
+            expect(ruleHeadPred?.definitionRange).toBeDefined();
+            expect(ruleHeadPred?.definitionRange.startLine).toEqual(4); // Line 4 in content
+            expect(ruleHeadPred?.calls).toHaveLength(1);
+            expect(ruleHeadPred?.calls[0].name).toEqual('write');
+            expect(ruleHeadPred?.calls[0].arity).toEqual(1); // Assuming BLint identifies built-in arity
+            expect(ruleHeadPred?.calls[0].location).toBeDefined();
+            expect(ruleHeadPred?.calls[0].location.startLine).toEqual(5); // write(A) is on Line 5
+            // Add precise character checks if stable/needed
+        }
     });
 
     it('should identify calls between predicates correctly', async () => {
@@ -150,29 +154,33 @@ helper(Y) :- write(Y).
         const settings: PrologServerSettings = { blint: { path: null } };
 
         // ACT
-        const parseResult = await parseProlog(filePath, fileContent, settings, realParserDeps);
+        const result = await parseProlog(filePath, fileContent, settings, realParserDeps);
 
         // ASSERT
-        expect(parseResult).toBeDefined();
-        expect(parseResult.predicates).toHaveLength(3);
+        expect(result).toBeDefined();
+        expect(result.success).toEqual(true);
+        if (result.success === true) {
+            const parseResult = transformAstToParseResult(result.ast, mockLogger);
+            expect(parseResult.predicates).toHaveLength(3);
 
-        const mainPred = parseResult.predicates.find(p => p.name === 'main');
-        expect(mainPred?.calls).toHaveLength(1);
-        expect(mainPred?.calls[0].name).toEqual('sub');
-        expect(mainPred?.calls[0].arity).toEqual(1);
-        expect(mainPred?.calls[0].location?.startLine).toEqual(2); // main :- sub(1).
+            const mainPred = parseResult.predicates.find(p => p.name === 'main');
+            expect(mainPred?.calls).toHaveLength(1);
+            expect(mainPred?.calls[0].name).toEqual('sub');
+            expect(mainPred?.calls[0].arity).toEqual(1);
+            expect(mainPred?.calls[0].location?.startLine).toEqual(2); // main :- sub(1).
 
-        const subPred = parseResult.predicates.find(p => p.name === 'sub');
-        expect(subPred?.calls).toHaveLength(1);
-        expect(subPred?.calls[0].name).toEqual('helper');
-        expect(subPred?.calls[0].arity).toEqual(1);
-        expect(subPred?.calls[0].location?.startLine).toEqual(3); // sub(X) :- helper(X).
+            const subPred = parseResult.predicates.find(p => p.name === 'sub');
+            expect(subPred?.calls).toHaveLength(1);
+            expect(subPred?.calls[0].name).toEqual('helper');
+            expect(subPred?.calls[0].arity).toEqual(1);
+            expect(subPred?.calls[0].location?.startLine).toEqual(3); // sub(X) :- helper(X).
 
-        const helperPred = parseResult.predicates.find(p => p.name === 'helper');
-        expect(helperPred?.calls).toHaveLength(1);
-        expect(helperPred?.calls[0].name).toEqual('write');
-        expect(helperPred?.calls[0].arity).toEqual(1);
-        expect(helperPred?.calls[0].location?.startLine).toEqual(4); // helper(Y) :- write(Y).
+            const helperPred = parseResult.predicates.find(p => p.name === 'helper');
+            expect(helperPred?.calls).toHaveLength(1);
+            expect(helperPred?.calls[0].name).toEqual('write');
+            expect(helperPred?.calls[0].arity).toEqual(1);
+            expect(helperPred?.calls[0].location?.startLine).toEqual(4); // helper(Y) :- write(Y).
+        }
     });
 
     it('should produce diagnostics for syntax errors correctly', async () => {
@@ -186,26 +194,39 @@ another_fact.
         const settings: PrologServerSettings = { blint: { path: null } };
 
         // ACT
-        const parseResult = await parseProlog(filePath, fileContent, settings, realParserDeps);
+        const result = await parseProlog(filePath, fileContent, settings, realParserDeps);
 
         // ASSERT
-        expect(parseResult).toBeDefined();
-        expect(parseResult.diagnostics?.length).toBeGreaterThan(0);
-        // Check for the specific error diagnostic (adjust line/message based on actual BLint output)
-        expect(parseResult.diagnostics).toEqual(expect.arrayContaining([
-            expect.objectContaining({
-                severity: 'error', // Or 'warning'
-                line: 3, // Line where error occurs (write(A) %)
-                message: expect.stringMatching(/syntax error/i) // Or more specific message
-            })
-        ]));
-        // Verify logger was NOT called with error unless parseProlog itself failed critically
-        // expect(mockLogger.error).not.toHaveBeenCalled(); // Might log warnings though
+        expect(result).toBeDefined();
+        expect(result.success).toEqual(true);
+        if (result.success === true) {
+            expect(result.ast.predicates).toEqual(expect.arrayContaining([
+                expect.objectContaining({
+                    kind: 'syntax'
+                })
+            ]));
+        }
     });
 
     it('should allow using a configured BLint path', async () => {
         // ARRANGE
         // Create a dummy script to act as a fake BLint for this test ONLY
+        const fakeParsedAst = {
+            file: "PLACEHOLDER_INPUT_PATH",
+            predicates: [{
+                type: "fact",
+                line: 1,
+                column: 1,
+                head: {
+                    type: "atom",
+                    line: 1,
+                    column: 1,
+                    text: "fake_pred",
+                    raw: "1/1-atom(fake_pred)"
+                },
+                raw: ["1/1-fact(1/1-atom(fake_pred))"]
+            }]
+        };
         const fakeBlintContent = 
 `#!/bin/sh
 # Fake BLint for testing configuration path
@@ -227,7 +248,7 @@ mkdir -p "$OUTPUT_DIR"
 # Write the predefined JSON content to the calculated output file path
 # Use printf for better compatibility than echo, especially with complex JSON
 printf '%s' \
-'{"file":"PLACEHOLDER_INPUT_PATH","predicates":[{"type":"fact","line":1,"column":1,"head":{"type":"atom","line":1,"column":1,"text":"fake_pred","raw":"1/1-atom(fake_pred)"},"raw":["1/1-fact(1/1-atom(fake_pred))"]}]}' \
+'${JSON.stringify(fakeParsedAst)}' \
 > "$OUTPUT_JSON_FILE"
 
 # Important: Replace the placeholder filePath in the JSON with the actual input file path ($3)
@@ -252,9 +273,10 @@ exit 0 # Indicate success
 
         // ASSERT
         expect(parseResult).toBeDefined();
-        expect(parseResult.diagnostics).toEqual([]);
-        expect(parseResult.predicates).toHaveLength(1);
-        expect(parseResult.predicates[0].name).toEqual('fake_pred'); // Check data from fake script
+        expect(parseResult.success).toEqual(true);
+        if (parseResult.success === true) {
+            expect(parseResult.ast.predicates).toEqual(fakeParsedAst.predicates);
+        }
     });
 
     // Add more integration tests for different syntax, modules, edge cases...

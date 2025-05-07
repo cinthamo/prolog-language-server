@@ -140,9 +140,11 @@ describe('prologParser.parseProlog (Dependency Injection)', () => {
         expect(mockTempManager.cleanup).toHaveBeenCalledWith(tmpDir);
 
         // Verify result structure matches the detailed mock data
-        const mockTransformedResult = transformAstToParseResult(mockJsonResult, mockLogger);
-        expect(result.predicates).toEqual(mockTransformedResult.predicates);
-        expect(result.diagnostics).toEqual([]);
+        expect(result.success).toEqual(true);
+        if (result.success === true) {
+            expect(result.ast).toEqual(mockJsonResult);
+            expect(result.warning).toEqual(undefined);
+        }
         expect(mockLogger.error).not.toHaveBeenCalled();
         expect(mockLogger.warn).not.toHaveBeenCalled();
     });
@@ -157,14 +159,10 @@ describe('prologParser.parseProlog (Dependency Injection)', () => {
         expect(mockTempManager.mkdtemp).not.toHaveBeenCalled();
         expect(mockCommandRunnerFactory).not.toHaveBeenCalled();
         expect(mockFs.readFile).not.toHaveBeenCalled();
-        // Check diagnostic
-        expect(result.diagnostics).toEqual(expect.arrayContaining([
-            expect.objectContaining({
-                message: expect.stringContaining('BLint path could not be determined'),
-                severity: 'error'
-            })
-        ]));
-        expect(result.predicates).toEqual([]);
+        expect(result.success).toEqual(false);
+        if (result.success === false) {
+            expect(result.error).toContain('BLint path could not be determined');
+        }
     });
     
     it('should return diagnostic and log error if reading JSON output file fails (not ENOENT)', async () => {
@@ -181,20 +179,11 @@ describe('prologParser.parseProlog (Dependency Injection)', () => {
         // ASSERT
         expect(mockCommandRunner.execute).toHaveBeenCalledTimes(1); // Ensure execute was attempted
         expect(mockFs.readFile).toHaveBeenCalledWith(tmpJson, { encoding: 'utf-8' }); // Ensure read was attempted
-        expect(result.predicates).toEqual([]); // No predicates parsed
-        // Check diagnostic for file read error
-        expect(result.diagnostics).toEqual(expect.arrayContaining([
-            expect.objectContaining({
-                severity: 'error',
-                message: expect.stringContaining(`Error reading BLint output file ${path.basename(tmpJson)}`)
-            })
-        ]));
-        expect(result.diagnostics).toEqual(expect.arrayContaining([
-            expect.objectContaining({ // Message includes the original error message
-                message: expect.stringContaining(readError.message)
-            })
-        ]));
-        expect(result.diagnostics).toHaveLength(1); // Should only be one diagnostic
+        expect(result.success).toEqual(false);
+        if (result.success === false) {
+            expect(result.error).toContain(`Error reading BLint output file ${path.basename(tmpJson)}`);
+            expect(result.error).toContain(readError.message); // Message includes the original error message
+        }
         // Check logger
         expect(mockLogger.error).toHaveBeenCalledWith(
             expect.stringContaining(`Error reading BLint output file ${path.basename(tmpJson)}`),
@@ -217,18 +206,10 @@ describe('prologParser.parseProlog (Dependency Injection)', () => {
         // ASSERT
         expect(mockCommandRunner.execute).toHaveBeenCalledTimes(1);
         expect(mockFs.readFile).toHaveBeenCalledTimes(1);
-        expect(result.predicates).toEqual([]);
-        // Check diagnostic for JSON parse error
-        expect(result.diagnostics).toEqual(
-            expect.arrayContaining([
-                expect.objectContaining({
-                    severity: 'error',
-                    message: expect.stringContaining(`Error processing BLint AST JSON output in ${path.basename(tmpJson)}`),
-                })
-            ])
-        );
-        expect(result.diagnostics?.[0]?.message).toMatch(/Error:.*JSON/i);
-        expect(result.diagnostics).toHaveLength(1);
+        expect(result.success).toEqual(false);
+        if (result.success === false) {
+            expect(result.error).toContain(`Error processing BLint AST JSON output in ${path.basename(tmpJson)}`);
+        }
         // Check logger
         expect(mockLogger.error).toHaveBeenCalledTimes(1);
         expect(mockLogger.error).toHaveBeenCalledWith(
@@ -252,24 +233,10 @@ describe('prologParser.parseProlog (Dependency Injection)', () => {
         const result = await parseProlog(sourcePath, sourceText, settings, parserDeps);
         
         // ASSERT
-        expect(result.predicates).toEqual([]);
-        expect(result.diagnostics).toEqual(
-            expect.arrayContaining([
-                expect.objectContaining({
-                    severity: 'error',
-                    message: expect.stringContaining(`Error processing BLint AST JSON output in ${path.basename(tmpJson)}`),
-                })
-            ])
-        );
-        expect(result.diagnostics).toHaveLength(1);
-        expect(mockLogger.error).toHaveBeenCalledWith(
-            expect.stringContaining(`Error processing BLint AST JSON output in ${path.basename(tmpJson)}`),
-            expect.objectContaining({
-                file: sourcePath,
-                error: 'ast.predicates is not iterable',
-                contentStart: expect.stringContaining(invalidStructureJson + '...')
-            })
-        );
+        expect(result.success).toEqual(true);
+        if (result.success === true) {
+            expect(result.ast.predicates).toBeUndefined();
+        }
     });
     
     
@@ -285,15 +252,10 @@ describe('prologParser.parseProlog (Dependency Injection)', () => {
         // ASSERT
         expect(mockCommandRunner.execute).toHaveBeenCalledTimes(1);
         expect(mockFs.readFile).toHaveBeenCalledTimes(1);
-        expect(result.predicates).toEqual([]);
-        // Check for the specific warning
-        expect(result.diagnostics).toEqual(expect.arrayContaining([
-            expect.objectContaining({
-                severity: 'warning',
-                message: expect.stringContaining('BLint ran successfully but produced no output JSON file')
-            })
-        ]));
-        expect(result.diagnostics).toHaveLength(1);
+        expect(result.success).toEqual(false);
+        if (result.success === false) {
+            expect(result.error).toContain(`BLint ran successfully but produced no output JSON file`);
+        }
         // Check logger
         expect(mockLogger.warn).toHaveBeenCalledWith(
             expect.stringContaining('BLint ran successfully but produced no output JSON file')
@@ -315,16 +277,11 @@ describe('prologParser.parseProlog (Dependency Injection)', () => {
         expect(mockFs.writeFile).not.toHaveBeenCalled(); // Should not proceed
         expect(mockCommandRunnerFactory).not.toHaveBeenCalled(); // Should not proceed
         // Check diagnostic
-        expect(result.diagnostics).toEqual(expect.arrayContaining([
-            expect.objectContaining({
-                severity: 'error',
-                message: expect.stringContaining(`Critical error during BLint analysis setup`)
-            }),
-            expect.objectContaining({ // Check specific error message
-                message: expect.stringContaining(tempError.message)
-            })
-        ]));
-        expect(result.diagnostics).toHaveLength(1);
+        expect(result.success).toEqual(false);
+        if (result.success === false) {
+            expect(result.error).toContain(`Critical error during BLint analysis setup`);
+            expect(result.error).toContain(tempError.message);
+        }
         // Check logger
         expect(mockLogger.error).toHaveBeenCalledWith(
             expect.stringContaining(`Critical error during BLint analysis setup`),
