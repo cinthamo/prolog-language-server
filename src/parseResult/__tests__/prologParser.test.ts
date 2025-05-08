@@ -100,6 +100,7 @@ describe('prologParser.parseProlog (Dependency Injection)', () => {
             file: sourcePath,
             predicates: [{                
                 type: 'rule', line: 1, column: 10,
+                fullRange: { start: { line: 1, column: 1 }, end: { line: 1, column: 20 } },
                 head: {
                     type: 'functor', line: 1, column: 1, name: 'pred1', arity: 1,
                     params: [{

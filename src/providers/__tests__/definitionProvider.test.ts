@@ -33,12 +33,14 @@ describe('definitionProvider.provideDefinition', () => {
             filePath: '/path/to/test.pl', // Note: cache uses URI string as key
             predicates: [
                 {
-                    name: 'pred1', arity: 1, startLine: 5, endLine: 5,
+                    name: 'pred1', arity: 1,
+                    fullRange: mockDefinitionRange,
                     definitionRange: mockDefinitionRange,
                     calls: [{ name: 'pred2', arity: 1, location: mockCallLocation }]
                 },
                 {
-                    name: 'pred2', arity: 1, startLine: 10, endLine: 10,
+                    name: 'pred2', arity: 1,
+                    fullRange: mockTargetDefinitionRange,
                     definitionRange: mockTargetDefinitionRange,
                     calls: []
                 }

@@ -1,9 +1,9 @@
 // --- Basic Location and Range ---
 
-/** Represents a position in the source file (1-based line, 1-based column) */
+/** Represents a position in the source file */
 interface AstPosition {
-    line: number;
-    column: number;
+    line: number; // 1-based
+    column: number; // 1-based
 }
 
 /** Represents a range in the source file */
@@ -18,12 +18,10 @@ interface AstRange {
 interface AstNodeBase {
     /** The syntactic type of the node */
     type: string; // 'directive', 'rule', 'fact', 'functor', 'atom', 'var', etc.
-    /** Line number where the node starts/is defined */
+    /** Line number where the node starts */
     line: number;
-    /** Column number where the node starts/is defined */
+    /** Column number where the node starts */
     column: number;
-    /** Optional: Could include a full AstRange if available for all nodes */
-    range?: AstRange;
     /** Optional associated comments */
     comments?: AstComment[];
     /** Raw text representation or source identifier (may vary in structure) */
@@ -137,7 +135,8 @@ interface AstParseError extends AstNodeBase {
 }
 
 // Union type for top-level elements in a file
-type AstTopLevel = AstDirective | AstFact | AstRule | AstParseError
+type AstTopLevel = (AstDirective | AstFact | AstRule | AstParseError)
+    & { fullRange: AstRange } // fullRange includes everything from the first token to the last token including comments
 
 // --- Root Structure ---
 
@@ -162,13 +161,15 @@ function isAstDirective(node: AstNodeBase): node is AstDirective { return node.t
 function isAstFact(node: AstNodeBase): node is AstFact { return node.type === 'fact'; }
 function isAstRule(node: AstNodeBase): node is AstRule { return node.type === 'rule'; }
 function isAstParseError(node: AstNodeBase): node is AstParseError { return node.type === 'parseerror'; }
+function isAstNumber(node: AstNodeBase): node is AstNumber { return node.type === 'number'; }
+function isAstOperator(node: AstNodeBase): node is AstOperator { return node.type === 'operator'; }
 // Add guards for other types as needed
 
 export default PrologAst;
 export {
     AstNodeBase, AstTopLevel, AstTerm, AstAtom, AstVar, AstNumber, AstOperator,
     AstFunctor, AstInfix, AstList, AstParenthesis, AstCut, AstParam,
-    AstComment, AstDirective, AstFact, AstRule, AstParseError,
-    isAstAtom, isAstVar, isAstFunctor, isAstInfix, isAstList, isAstParenthesis,
+    AstComment, AstDirective, AstFact, AstRule, AstParseError, AstRange,
+    isAstAtom, isAstVar, isAstFunctor, isAstInfix, isAstList, isAstParenthesis, isAstNumber, isAstOperator,
     isAstCut, isAstParam, isAstComment, isAstDirective, isAstFact, isAstRule, isAstParseError
 }

@@ -47,12 +47,14 @@ describe('referencesProvider.provideReferences', () => {
             filePath: '/project/file1.pl', // File containing definition and a call
             predicates: [
                 {
-                    name: 'pred1', arity: 0, startLine: 3, endLine: 3,
+                    name: 'pred1', arity: 0,
+                    fullRange: defRangePred1,
                     definitionRange: defRangePred1,
                     calls: [] // pred1 calls nothing
                 },
                 {
-                    name: 'caller1', arity: 1, startLine: 6, endLine: 8,
+                    name: 'caller1', arity: 1,
+                    fullRange: { startLine: 6, startCharacter: 0, endLine: 6, endCharacter: 7 },
                     definitionRange: { startLine: 6, startCharacter: 0, endLine: 6, endCharacter: 7 },
                     calls: [ // Calls pred1
                         { name: 'pred1', arity: 0, location: call1RangePred1 }
@@ -65,14 +67,16 @@ describe('referencesProvider.provideReferences', () => {
             filePath: '/project/file2.pl', // File containing another call
             predicates: [
                 {
-                    name: 'caller2', arity: 0, startLine: 9, endLine: 11,
+                    name: 'caller2', arity: 0,
+                    fullRange: { startLine: 9, startCharacter: 0, endLine: 9, endCharacter: 7 },
                     definitionRange: { startLine: 9, startCharacter: 0, endLine: 9, endCharacter: 7 },
                     calls: [ // Calls pred1
                          { name: 'pred1', arity: 0, location: call2RangePred1 }
                     ]
                 },
                  {
-                    name: 'pred2', arity: 1, startLine: 15, endLine: 15, // Another predicate, not called/calling pred1
+                    name: 'pred2', arity: 1,
+                    fullRange: defRangePred2,
                     definitionRange: defRangePred2,
                     calls: []
                  }

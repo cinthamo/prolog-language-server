@@ -1,4 +1,4 @@
-import PrologAst, { AstNodeBase, AstTerm, isAstFunctor, isAstAtom, isAstInfix, isAstList, isAstParenthesis, isAstRule, isAstFact, isAstDirective, isAstParseError } from './types';
+import PrologAst, { AstNodeBase, AstTerm, isAstFunctor, isAstAtom, isAstInfix, isAstList, isAstNumber, isAstParenthesis, isAstRule, isAstFact, isAstDirective, isAstParseError, AstRange, isAstCut, isAstVar, isAstOperator } from './types';
 import ParseResult, { ParserResultPredicate, EnhancedCallInfo, SourceRange, DiagnosticData } from '../parseResult/types';
 import Logger from '../interfaces/logger';
 
@@ -14,31 +14,53 @@ function getHeadNameArity(head: AstTerm): { name: string; arity: number } | null
     return null;
 }
 
+function getNodeText(node: AstNodeBase): string {
+    if (isAstAtom(node)) {
+        return node.text;
+    } else if (isAstVar(node)) {
+        return node.name;
+    } else if (isAstNumber(node)) {
+        return node.value.toString();
+    } else if (isAstOperator(node)) {
+        return node.op;
+    } else if (isAstFunctor(node)) {
+        return node.name;
+    } else if (isAstInfix(node)) {
+        return node.op.op;
+    } else if (isAstList(node)) {
+        return '[]';
+    } else if (isAstParenthesis(node)) {
+        return '()';
+    } else if (isAstCut(node)) {
+        return '!';
+    }
+    return '???';
+}
+
 // Helper to extract a SourceRange from potentially incomplete AST node info
 // Returns a default range if line/column are missing.
 function getSourceRangeFromNode(node: AstNodeBase, logger: Logger): SourceRange {
-    // --- This requires BLint to provide usable location info ---
-    // --- Adapt based on what BLint *actually* provides for terms ---
-
-    // Ideal case: Node has a 'range' property of type AstRange
-    // if (node.range) { return node.range; }
-
-    // Fallback: Use line/column if available
     if (node.line && node.column) {
-        // Attempt to calculate end based on raw text length (heuristic!)
-        const rawText = Array.isArray(node.raw) ? node.raw[0] : node.raw; // Use first raw string if array
-        const endChar = node.column -1 + (rawText?.split('-')[1]?.length || 1); // Very rough guess based on atom/var name in raw:"L/C-type(Name)"
         return {
             startLine: node.line,
             startCharacter: node.column - 1, // Assume 1-based column -> 0-based character
             endLine: node.line, // Assume single line for simple terms
-            endCharacter: endChar > node.column - 1 ? endChar : node.column // Ensure end >= start
+            endCharacter: node.column - 1 + getNodeText(node).length // End character is start + length of text
         };
     }
 
     // Absolute fallback (indicates missing info from BLint)
     logger.warn(`AST node missing location info: ${JSON.stringify(node)}`);
     return { startLine: 1, startCharacter: 0, endLine: 1, endCharacter: 1 };
+}
+
+function getSourceRangeFromAstRange(range: AstRange) {
+    return {
+        startLine: range.start.line,
+        startCharacter: range.start.column - 1,
+        endLine: range.end.line,
+        endCharacter: range.end.column - 1
+    };
 }
 
 // Recursive helper to find all calls (functors) within a term or list of terms
@@ -51,8 +73,7 @@ function findCallsInBody(body: AstTerm[], calls: EnhancedCallInfo[], logger: Log
             calls.push({
                 name: term.name,
                 arity: term.arity,
-                location: getSourceRangeFromNode(term, logger) // <<< RELIES ON BLINT PROVIDING LOCATION FOR FUNCTORS
-                // Optional: Add fullCallLocation if BLint provides range for the whole term
+                location: getSourceRangeFromNode(term, logger)
             });
             // Recursively search inside the parameters of the functor
             findCallsInBody(term.params, calls, logger); // Assumes params is AstTerm[]
@@ -119,7 +140,7 @@ export function transformAstToParseResult(ast: PrologAst, logger: Logger): Parse
         }
 
         const predicateKey = `${headInfo.name}/${headInfo.arity}`;
-        const definitionRange = getSourceRangeFromNode(headTerm, logger); // <<< RELIES ON BLINT PROVIDING LOCATION FOR HEAD
+        const definitionRange = getSourceRangeFromNode(headTerm, logger);
 
         // Find calls within the body of this specific clause
         const clauseCalls: EnhancedCallInfo[] = [];
@@ -133,9 +154,8 @@ export function transformAstToParseResult(ast: PrologAst, logger: Logger): Parse
             predicateEntry = {
                 name: headInfo.name,
                 arity: headInfo.arity,
-                startLine: topLevel.line || definitionRange.startLine, // Use top-level line or range start
-                endLine: topLevel.line || definitionRange.endLine,     // Use top-level line or range end (initial)
-                definitionRange: definitionRange, // Use range of the first head encountered
+                fullRange: getSourceRangeFromAstRange(topLevel.fullRange),
+                definitionRange, // Use range of the first head encountered
                 calls: clauseCalls,
                 // comments: currentComments // Optionally aggregate comments
             };
@@ -144,10 +164,8 @@ export function transformAstToParseResult(ast: PrologAst, logger: Logger): Parse
             // Aggregate results for subsequent clauses of the same predicate
             predicateEntry.calls.push(...clauseCalls);
             // Update start/end lines to encompass all clauses
-            predicateEntry.startLine = Math.min(predicateEntry.startLine, topLevel.line || definitionRange.startLine);
-            predicateEntry.endLine = Math.max(predicateEntry.endLine, topLevel.line || definitionRange.endLine); // Need end line from AST ideally
-            // Optionally aggregate comments
-            // predicateEntry.comments = [...(predicateEntry.comments || []), ...currentComments];
+            predicateEntry.fullRange.startLine = Math.min(predicateEntry.fullRange.startLine, topLevel.line || definitionRange.startLine);
+            predicateEntry.fullRange.endLine = Math.max(predicateEntry.fullRange.endLine, topLevel.line || definitionRange.endLine); // Need end line from AST ideally
         }
     }
 

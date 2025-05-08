@@ -100,6 +100,7 @@ describe('BLint Integration Tests (using parseProlog)', () => {
         const fileContent = `
 fact.
 
+% comment
 rule_head(A) :-
     write(A).
 `;
@@ -120,25 +121,21 @@ rule_head(A) :-
             const factPred = parseResult.predicates.find(p => p.name === 'fact');
             expect(factPred).toBeDefined();
             expect(factPred?.arity).toEqual(0);
-            expect(factPred?.definitionRange).toBeDefined();
-            expect(factPred?.definitionRange.startLine).toEqual(2); // Line numbers are 1-based from content
-            expect(factPred?.definitionRange.endLine).toEqual(2);
-            // Add precise character checks if BLint provides them and they are stable
-            // expect(factPred?.definitionRange.startCharacter).toEqual(0);
-            // expect(factPred?.definitionRange.endCharacter).toEqual(4);
+            expect(factPred?.definitionRange).toEqual({ startLine: 2, startCharacter: 0, endLine: 2, endCharacter: 4 });
+            expect(factPred?.fullRange).toEqual({ startLine: 2, startCharacter: 0, endLine: 2, endCharacter: 5 });
             expect(factPred?.calls).toEqual([]);
 
             // Check rule_head(A) :- write(A).
             const ruleHeadPred = parseResult.predicates.find(p => p.name === 'rule_head');
             expect(ruleHeadPred).toBeDefined();
             expect(ruleHeadPred?.arity).toEqual(1);
-            expect(ruleHeadPred?.definitionRange).toBeDefined();
-            expect(ruleHeadPred?.definitionRange.startLine).toEqual(4); // Line 4 in content
+            expect(ruleHeadPred?.definitionRange).toEqual({ startLine: 5, startCharacter: 0, endLine: 5, endCharacter: 9 });
+            expect(ruleHeadPred?.fullRange).toEqual({ startLine: 4, startCharacter: 0, endLine: 6, endCharacter: 13 });
             expect(ruleHeadPred?.calls).toHaveLength(1);
             expect(ruleHeadPred?.calls[0].name).toEqual('write');
             expect(ruleHeadPred?.calls[0].arity).toEqual(1); // Assuming BLint identifies built-in arity
             expect(ruleHeadPred?.calls[0].location).toBeDefined();
-            expect(ruleHeadPred?.calls[0].location.startLine).toEqual(5); // write(A) is on Line 5
+            expect(ruleHeadPred?.calls[0].location.startLine).toEqual(6); // write(A) is on Line 6
             // Add precise character checks if stable/needed
         }
     });

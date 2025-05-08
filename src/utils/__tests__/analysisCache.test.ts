@@ -32,12 +32,14 @@ describe('AnalysisCache', () => {
             filePath: '/project/file1.pl',
             predicates: [
                 { // pred1/0 definition
-                    name: 'pred1', arity: 0, startLine: 3, endLine: 3,
+                    name: 'pred1', arity: 0,
+                    fullRange: defRangePred1,
                     definitionRange: defRangePred1,
                     calls: []
                 },
                 { // caller1/1 definition (calls pred1/0)
-                    name: 'caller1', arity: 1, startLine: 6, endLine: 8,
+                    name: 'caller1', arity: 1,
+                    fullRange: defRangeCaller1,
                     definitionRange: defRangeCaller1,
                     calls: [
                         { name: 'pred1', arity: 0, location: callLocationInCaller1 } // <<< This call is the reference *to* pred1/0
@@ -50,7 +52,8 @@ describe('AnalysisCache', () => {
             filePath: '/project/file2.pl',
             predicates: [
                  { // pred2/1 definition (calls nothing relevant)
-                    name: 'pred2', arity: 1, startLine: 10, endLine: 10,
+                    name: 'pred2', arity: 1,
+                    fullRange: defRangePred2,
                     definitionRange: defRangePred2,
                     calls: []
                  }

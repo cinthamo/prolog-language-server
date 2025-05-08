@@ -18,15 +18,15 @@ export function provideDocumentSymbols(
 
     return parseResult.predicates.map((pred: ParserResultPredicate) => {
         // Use the precise definitionRange from BLint
+        const fullLspRange = blintRangeToLspRange(pred.fullRange);
         const definitionLspRange = blintRangeToLspRange(pred.definitionRange);
 
         return DocumentSymbol.create(
-            `${pred.name}/${pred.arity}`, // Display name
-            undefined, // Detail
-            SymbolKind.Function, // Or Method/Field as appropriate
-            definitionLspRange, // Full range is the definition head range
-            definitionLspRange  // Selection range is also the definition head range
-            // children: [] // Add children if BLint provides nested symbol info
+            `${pred.name}/${pred.arity}`,
+            undefined,
+            SymbolKind.Function,
+            fullLspRange,
+            definitionLspRange
         );
     });
 }
