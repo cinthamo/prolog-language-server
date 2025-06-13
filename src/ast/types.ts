@@ -112,31 +112,34 @@ interface AstComment extends AstNodeBase {
     text: string; // Content of the comment
 }
 
-interface AstDirective extends AstNodeBase {
+interface AstDirective extends AstTopLevelBase {
     type: 'directive';
     // The body of the directive, usually one or more functors
     directives: AstFunctor[]; // e.g., [functor(dynamic, 1, ...)]
 }
 
-interface AstFact extends AstNodeBase {
+interface AstFact extends AstTopLevelBase {
     type: 'fact';
     head: AstTerm; // The fact's head term (usually AstFunctor or AstAtom)
 }
 
-interface AstRule extends AstNodeBase {
+interface AstRule extends AstTopLevelBase {
     type: 'rule';
     head: AstTerm; // The rule's head term
     body: AstTerm[]; // Array of goal terms in the body
 }
 
-interface AstParseError extends AstNodeBase {
+interface AstParseError extends AstTopLevelBase {
     type: 'parseerror';
     kind: string;
 }
 
+interface AstTopLevelBase extends AstNodeBase {
+    fullRange: AstRange; // fullRange includes everything from the first token to the last token including comments
+}
+
 // Union type for top-level elements in a file
-type AstTopLevel = (AstDirective | AstFact | AstRule | AstParseError)
-    & { fullRange: AstRange } // fullRange includes everything from the first token to the last token including comments
+type AstTopLevel = AstDirective | AstFact | AstRule | AstParseError;
 
 // --- Root Structure ---
 
